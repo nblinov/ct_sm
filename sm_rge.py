@@ -54,7 +54,7 @@ class rge:
 
 
         # Z_h RGE
-        dydt[7] = ((-9*np.power(g1,2))/320. - (9*np.power(g2,2))/64. + \
+        dydt[7] = -Zh*((-9*np.power(g1,2))/320. - (9*np.power(g2,2))/64. + \
 (3*np.power(yb,2))/16. + (3*np.power(yt,2))/16. + np.power(ytau,2)/16.)/pi2 
 
 

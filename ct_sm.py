@@ -54,7 +54,6 @@ def devFromInput(x, mh, vev, model):
       g = (mh2l - mh**2)/mh**2
     else: 
       g = 100.
-
     return [f, g]
 
 def findParaFull(model, mh):
@@ -125,7 +124,7 @@ class sm_eft(generic_potential.generic_potential):
 
         # Guesses for the couplings that will give the proper values of mh and v at the vev scale
         v = 246.22
-        mu12 = 88.6**2.
+        mu12 = -88.6**2.
         l1 = 0.11 
         print "Guesses for mu12 and l1 = ", mu12, l1
 
@@ -165,7 +164,8 @@ class sm_eft(generic_potential.generic_potential):
         # Verify that everything went well...
         print "Final values of mu12, l1 = ", self.mu12, self.l1
         print "Scale set at mu = ", np.sqrt(self.renormScaleSq)
-        vev = optimize.minimize(lambda x: self.Vtot(x,T=0),[200])['x']
+        vev = optimize.minimize(lambda x: self.Vtot(x,T=0),[200],method='Nelder-Mead')['x']
+        #vev = optimize.fmin(lambda x: self.Vtot(x,T=0),[200])
         print "vev = ", vev 
         print "mh = ", np.sqrt(self.d2V(vev,T=0)[0,0])
 
