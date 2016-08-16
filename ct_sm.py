@@ -174,7 +174,10 @@ class sm_eft(generic_potential.generic_potential):
         # Initial conditions for RG running
 
         # Include the daisy corrections or not
-        self.daisyResum = True; 
+        # daisyResum = 0: no resummation
+        # daisyResum = 1: all modes resummed
+        # daisyResum = 2: only 0 modes resummed
+        self.daisyResum = 1; 
 
 
         # Run between tmin and tmax
@@ -296,7 +299,7 @@ class sm_eft(generic_potential.generic_potential):
         mZ2 = np.array([0.25*(g**2 + gp**2)*(v**2)])
 
 
-        if self.daisyResum:
+        if self.daisyResum == 1 or 2:
           # Temperature corrections for scalars
           c1 = g**2/8. + (g**2 + gp**2)/16. \
              + self.l1/2. + self.yt**2/4. + self.yb**2/4. + self.ytau**2/12.
@@ -320,20 +323,6 @@ class sm_eft(generic_potential.generic_potential):
           #mW2L = mW2;
 
 
-          """
-
-          # Turn on and off various contributions to check what is driving the transition
-          if T > 0:
-            # Get rid of gauge bosons
-            #dof = np.array([1, 1, 1, 1, 2, 2, 0, 0, 0, 0, 0])
-            # Get rid of A, Hpm
-            #dof = np.array([1, 1, 1, 0, 2, 0, 2, 1, 1, 4, 2])
-            # Get rid of h, H
-            dof = np.array([0, 0, 1, 1, 2, 2, 2, 1, 1, 4, 2])
-
-          else:
-            dof = np.array([1, 1, 1, 1, 2, 2, 2, 1, 1, 4, 2])
-          """
           #print (MSqEven, MSqOdd, MSqCharged,mZ2,mZ2L,mA2L, mW2, mW2L)
           M = np.concatenate((MSqEven, MSqOdd, MSqCharged,mZ2,mZ2L,mA2L, mW2, mW2L))
           M = np.rollaxis(M, 0, len(M.shape))
@@ -359,6 +348,52 @@ class sm_eft(generic_potential.generic_potential):
 
         c = np.array([1.5, 1.5, 1.5])
         return M, dof
+
+    def Vtot(self, X, T, include_radiation=True):
+        """
+        The total finite temperature effective potential.
+        
+        Parameters
+        ----------
+        X : array_like
+            Field value(s). 
+            Either a single point (with length `Ndim`), or an array of points.
+        T : float or array_like
+            The temperature. The shapes of `X` and `T`
+            should be such that ``X.shape[:-1]`` and ``T.shape`` are
+            broadcastable (that is, ``X[...,0]*T`` is a valid operation).
+        include_radiation : bool, optional
+            If False, this will drop all field-independent radiation
+            terms from the effective potential. Useful for calculating
+            differences or derivatives.
+        """
+        T = np.asanyarray(T, dtype=float)
+        X = np.asanyarray(X, dtype=float)
+
+        # Without finite-T self energy
+        bosons0 = self.boson_massSq(X,0.*T)
+        m20, nb, c = bosons0
+        # With finite-T self energy
+        bosonsT = self.boson_massSq(X,T)
+        m2T, nbT, cT = bosonsT
+        fermions = self.fermion_massSq(X)
+        y = self.V0(X)
+        y += self.V1(bosons0, fermions)
+
+        # Parwani (1992) prescription. All modes resummed.
+        if self.daisyResum == 1:
+            y += self.V1T(bosonsT, fermions, T, include_radiation)
+        # Carrington (1992), Arnold and Espinosa (1992) prescription. Zero modes only.
+        elif self.daisyResum == 2:
+            # Absolute values are a hack. Potential trustworthy only away from where m2T, m20 < 0.  
+            Vdaisy = -(T/(12.*np.pi))*np.sum ( nb*(np.power(np.abs(m2T),1.5) - np.power(np.abs(m20),1.5)), axis=-1) 
+            y += self.V1T(bosons0, fermions, T, include_radiation) + Vdaisy
+        # No daisy resummation
+        elif self.daisyResum == 0:
+            y += self.V1T(bosons0, fermions, T, include_radiation)
+
+        return y
+
 
     def gaugeInvariantVeffMin(self, X0, T):
       """ Gauge invariant value of the potential at an extremum using the method of 1101.4665.
