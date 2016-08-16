@@ -13,7 +13,8 @@ v2 = 246.**2
    
 def devFromInput(x, mh, vev, model):
     """
-    Compute the deviation in v, mh
+    Given x=[mu12,lam1] at input scale, compute next iteration of 
+    these parameters using the Coleman-Weinberg potential.
     """
 
     #mu12, mu22, l1, l2, l3, l4, l5 = x
@@ -24,18 +25,20 @@ def devFromInput(x, mh, vev, model):
     y0 = model.y0
     y0[6] = l1
     y0[8] = mu12
+
     # update the input values stored in the model object!
     model.y0 = y0
     inputScale = np.sqrt(model.inputRgScaleSq)
+
     # Integrate RGEs to mu=v
     tmin = 0; tmax = np.log(v/inputScale)
     tvev = np.log(v/inputScale)
-    #ti = np.linspace(tmin,tmax)
     ti = np.array([0., tvev])
     model.rgsys.twoLoop = True
     y_at_t = integrate.odeint(model.rgsys.f,y0,ti)
     # y_at_t: [0] initial, [1] at vev
     y_at_v = y_at_t[1]
+
     # Update the potential parameters, compute v and mh
     model.renormScaleSq = v**2.
     g1,g2,g3,yt,yb,ytau,l1,Zh,mu12 = y_at_v
@@ -47,33 +50,59 @@ def devFromInput(x, mh, vev, model):
 
     model.setFieldRenorm(Zh)
     
-    mh2l = model.d2V([v],T=0)[0,0]
+    Vlp = model.gradV([v],T=0.)[0] - mu12*v - l1*v**3
+    Vl2p = model.d2V([v],T=0)[0,0] - mu12 - 3.*l1*v**2
 
-    f = model.gradV([v],T=0.)[0]/v**3
-    if mh2l > 0.:
-      g = (mh2l - mh**2)/mh**2
-    else: 
-      g = 100.
-    return [f, g]
+    l1New = (mh**2 + Vlp/v - Vl2p)/(2.*v**2)
+    mu12New = - l1New*v**2 - Vlp/v
+
+    # RG evolve back to input scale
+
+    y_at_v[6] = l1New
+    y_at_v[8] = mu12New
+
+    ti_reverse = ti[::-1]
+    y_at_t = integrate.odeint(model.rgsys.f,y_at_v,ti_reverse)
+
+    l1New = y_at_t[1][6]
+    mu12New = y_at_t[1][8]
+
+    return [mu12New,l1New]
 
 def findParaFull(model, mh):
     """
     Find l1 and mu12 at input scale that correspond to 
     dV(h=v) =0 and d2V(v) = mh^2 at rgScale = vev
-
     """ 
+    tol = 1e-6 # Determines when to stop iteration
+    maxIt = 10 # Max number of iterations to try
     vev = 246.22
     lam1i = model.l1;
     mu12i = model.mu12;
 
     func = lambda x: devFromInput(x, mh, vev, model)
     #sol = scipy.optimize.newton_krylov(func, [lam1_init,mu12_init], f_tol=1e-3)
-    x_guess = [mu12i, lam1i]
-    print "Deviations from desired values before optimization:", func(x_guess)
-    sol = optimize.fsolve(func, x_guess)
-    print "Deviations from desired values after optimization:", func(sol)
+    x_guess = np.array([mu12i, lam1i])
+    x_prev = np.array([mu12i, lam1i])
+    for i in range(1,maxIt):
+        x_new = np.array(func(x_prev))
+        x_diff = x_new - x_prev
+        x_sum = np.fabs(x_new + x_prev)
+
+        if np.linalg.norm(x_diff/x_sum) < tol:
+            # update parameters with their final values
+            x_new = func(x_new)
+            print "Iteration converged with [mu12, lam1] = ", x_new
+            vev
+            print "v, mh = ", optimize.fmin(lambda x: model.Vtot(x,T=0),[200],disp=0), np.sqrt(model.d2V([vev],T=0)[0,0])
+            break
+        if i == maxIt:
+            print "Iteration did not converge to desired tolerance of ", tol
+
+        x_prev = x_new
+
     # Solve model RGEs, now with the updated initial conditions
-    model.solve_rge(model.y0)
+    sol = model.solve_rge(model.y0)
     return sol
 
 
