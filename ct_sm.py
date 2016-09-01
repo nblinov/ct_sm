@@ -315,8 +315,8 @@ class sm_eft(generic_potential.generic_potential):
 
           Discr = np.sqrt( (mZ2/2. + (11./12.)*(g**2 + gp**2)*T**2)**2 \
                          - (g**2)*(gp**2)*((11./6.)*T**2)*(0.5*v**2 + (11./6.)*T**2) )
-          mZ2L = mZ2/2. + (g**2 + gp**2)*T**2 + Discr
-          mA2L = mZ2/2. + (g**2 + gp**2)*T**2 - Discr
+          mZ2L = mZ2/2. + (11./12.)*(g**2 + gp**2)*T**2 + Discr
+          mA2L = mZ2/2. + (11./12.)*(g**2 + gp**2)*T**2 - Discr
           
           #mZ2L = mZ2;
           #mA2L = np.array([0.]);
